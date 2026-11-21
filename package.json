@@ -1,0 +1,59 @@
+{
+  "name": "@zhangxij/dsh-nitui",
+  "version": "0.1.0",
+  "private": false,
+  "type": "module",
+  "description": "逆推：假设失败、反向推演的决策辅助；推演记录写在本机 ~/.nitui，不上传。",
+  "license": "MIT",
+  "icon": "./icon.svg",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zhang-1239/dsh-nitui.git"
+  },
+  "homepage": "https://github.com/zhang-1239/dsh-nitui#readme",
+  "bugs": {
+    "url": "https://github.com/zhang-1239/dsh-nitui/issues"
+  },
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek",
+    "harness",
+    "cordis",
+    "premortem",
+    "decision",
+    "reverse-thinking"
+  ],
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "seed.js",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg",
+    "icon-512.png",
+    "screenshots.json",
+    "docs/screenshots",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "check": "node --check index.js && node --check client.js && node --check seed.js",
+    "seed": "node seed.js",
+    "prepublishOnly": "npm run check"
+  },
+  "dsh": {
+    "bundle": { "patch": "./cordis.patch.yml" },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": ["@deepseek-ai/dsh-client-ui-chat"]
+    }
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Reverse it",
+    "description": "Assume the decision fails, then work backwards: three questions in about two minutes produce a premortem card with ranked causes and one cheap check for each. Records stay in ~/.nitui on this machine."
+  }
+}
