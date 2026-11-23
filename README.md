@@ -97,11 +97,11 @@ dsh plugin --profile web add @zhangxij/dsh-nitui
 
 ## 隐私与权限
 
-- **不发起外部网络请求**：插件没有遥测、统计、字体、CDN 或第三方 API；浏览器端只 `fetch` 同源的 `/nitui/*`。跨站请求（`Origin` 与 `Host` 不一致）直接 403。
+- **不发起外部网络请求**：插件没有遥测、统计、字体、CDN 或第三方 API；浏览器端只 `fetch` 同源的 `/nitui/*`，并带上 DSH 的 `dsh-auth-*` 会话凭据。宿主先跑同源校验（`Origin` 与 `Host` 不一致直接 403），再调用 `ctx.connection.requestRejection` 做 DSH 访问检查：没有有效 DSH 凭据的请求返回 401，跨站请求返回 403，都在任何路由逻辑之前。
 - **模型请求**：生成 ② 的候选、③ 的追问和验尸卡时，会把你在三问里写的内容通过 DSH 的 `llm` 服务发给你当前配置的模型提供方。不会发送历史记录或暗线记录；请求由宿主发出，插件不直连任何模型 API。
 - **读取对话**：暗线开启时，会读取用户新消息的文本，用来判断「在取舍」还是「已经定了」；只把派生出的选择记录写到本机，不保存整条消息。
 - **文件访问**：只读写上面的数据目录；不扫描其它目录，不写 `node_modules`。
-- **HTTP 面**：只注册同源路由 `GET /nitui/state`、`POST /nitui/action`、`GET /nitui/choices`、`GET /nitui/recall`；请求体上限 64 KiB，只接受 `application/json`。
+- **HTTP 面**：只注册同源路由 `GET /nitui/state`、`POST /nitui/action`、`GET /nitui/choices`、`GET /nitui/recall`；每个请求都先过 DSH 访问检查（`ctx.connection.requestRejection`），未授权 401、不可信来源 403；请求体上限 64 KiB，只接受 `application/json`。
 - **给模型的两个工具**：`log_choice`（记一条选择）和 `recall_choice`（只读召回），外加一段系统提示，要求模型只在用户已经选定时记录。
 - **关闭**：设置里的「记录选择并在同类选择上召回」关掉后，暗线停止记录与召回；明线仍可单独使用。
 
@@ -167,7 +167,7 @@ $env:DSH_NITUI_DATA = 'D:\tmp\nitui-dev'
 
 - **Install:** `dsh plugin --profile web add @zhangxij/dsh-nitui` (the local dev form is `... add file:/path/to/nitui`). If you publish under a different scope, update the package name in `package.json`, `cordis.patch.yml`, and the `__ModuleLoader__` id in `client.js` together.
 - **Data:** `config.dataRoot` → `DSH_NITUI_DATA` → repo-local `data/` (development only, and only if it exists) → `~/.nitui`. Never `node_modules`. Sessions and choices are append-only JSONL; settings are `config.json`.
-- **Privacy:** no outbound requests from the plugin, no telemetry. Model prompts (hints, follow-up, card) go through the host's configured LLM and contain only what you typed in the three questions. User messages are inspected for choice detection only while the dark line is on; full messages are not stored.
+- **Privacy:** no outbound requests from the plugin, no telemetry. Model prompts (hints, follow-up, card) go through the host's configured LLM and contain only what you typed in the three questions. User messages are inspected for choice detection only while the dark line is on; full messages are not stored. The browser half calls only same-origin `/nitui/*` routes with DSH's session credential, and the host runs `ctx.connection.requestRejection` before any route logic (401 without a valid DSH credential, 403 for an untrusted origin).
 - **Limitations:** Chinese-first UI; the dark line is keyword/regex heuristics and will misfire; quality depends on the configured model; local single-user plaintext JSON with no sync or encryption; append-only files with no compaction; choices-only export.
 
 ## License

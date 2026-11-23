@@ -10,9 +10,15 @@
  *      one event per line, never rewritten. The list in the browser is folded
  *      from those events, so a restart loses nothing.
  *
- * Routes (same origin, JSON):
+ * Routes (JSON, DSH-checked):
  *   GET  /nitui/state    folded sessions + whether the model route is usable
  *   POST /nitui/action   one of the actions handled by `act()`
+ *
+ * Every request passes the DSH access check before any route logic:
+ * `ctx.connection.requestRejection(req)` runs the Host/Origin fence (403) and
+ * the browser-session/API-Peer check (401), so a page from another origin or
+ * a caller without DSH's `dsh-auth-*` credential reaches nothing. The explicit
+ * same-origin check stays in front as a cheap first fence.
  */
 import { randomUUID } from 'node:crypto'
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
@@ -88,7 +94,7 @@ const nowLocal = () => {
   return `${local}${sign}${pad(Math.floor(abs / 60))}:${pad(abs % 60)}`
 }
 
-export const inject = ['webServer', 'tools']
+export const inject = ['webServer', 'tools', 'connection']
 
 export function apply(ctx, config) {
   const requestedRoot = resolveRoot(config)
@@ -870,6 +876,18 @@ export function apply(ctx, config) {
     try {
       if (!sameOrigin(req)) {
         send(res, 403, { ok: false, error: 'forbidden' })
+        return
+      }
+      /* The composition's connection service gates every route; without it the
+         plugin fails closed rather than serving local records unprotected. */
+      const connection = ctx.connection
+      if (connection === undefined || typeof connection.requestRejection !== 'function') {
+        send(res, 503, { ok: false, error: 'access-check-unavailable' })
+        return
+      }
+      const rejection = connection.requestRejection(req)
+      if (rejection !== undefined) {
+        send(res, rejection, { ok: false, error: rejection === 401 ? 'unauthorized' : 'forbidden' })
         return
       }
       const pathname = new URL(req.url ?? '/', 'http://nitui.local').pathname

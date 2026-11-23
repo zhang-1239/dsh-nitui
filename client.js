@@ -75,11 +75,23 @@ window.__ModuleLoader__.load({
 
     /* ------------------------------------------------------------ helpers */
 
-    async function api(pathname, body) {
-      const init = body === undefined
-        ? { method: 'GET' }
-        : { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }
-      const response = await fetch(API + pathname, init)
+    /**
+     * Every /nitui request rides DSH's browser connection. DSH's credential is
+     * the `dsh-auth-*` session cookie minted from the URL `dsh` prints; the
+     * page's same-origin fetch carries it automatically, and a carrier that
+     * exposes `__DSH_TRANSPORT__.fetch` (the desktop shell) is preferred when
+     * present. The host's `ctx.connection.requestRejection(req)` verifies that
+     * exact credential before any route logic runs.
+     */
+    function dshFetch(pathname, init) {
+      const transport = globalThis.__DSH_TRANSPORT__
+      if (transport !== undefined && typeof transport.fetch === 'function') {
+        return transport.fetch(API + pathname, init)
+      }
+      return fetch(API + pathname, { credentials: 'same-origin', ...init })
+    }
+
+    async function readJsonResponse(response) {
       let data = null
       try {
         data = await response.json()
@@ -92,6 +104,13 @@ window.__ModuleLoader__.load({
       return data
     }
 
+    async function api(pathname, body) {
+      const init = body === undefined
+        ? { method: 'GET' }
+        : { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }
+      return readJsonResponse(await dshFetch(pathname, init))
+    }
+
     const ERROR_TEXT = {
       'q1-required': '第①问还没写。',
       'q2-required': '第②问还没写。',
@@ -99,6 +118,9 @@ window.__ModuleLoader__.load({
       'llm-unavailable': '当前配置里没有模型。',
       'model-unresolved': '没有可用的模型，先整理你写的内容。',
       'body-too-large': '内容太长了。',
+      unauthorized: 'DSH 会话已失效：请从 dsh 打印的地址重新打开页面。',
+      forbidden: 'DSH 拒绝了这次请求：来源或凭据不可信。',
+      'access-check-unavailable': '这里没有可用的 DSH 访问检查，已拒绝请求。',
     }
     const errorText = (code) => ERROR_TEXT[code] ?? (code === '' ? '' : `出错了：${code}`)
 
@@ -449,7 +471,7 @@ window.__ModuleLoader__.load({
     function QuickSettings() {
       const [data, setData] = React.useState(null)
       React.useEffect(() => {
-        fetch(`${API}/choices`).then((response) => response.json()).then(setData).catch(() => {})
+        dshFetch('/choices').then(readJsonResponse).then(setData).catch(() => {})
       }, [])
       const save = (body) => {
         api('/action', { type: 'settings', ...body })
@@ -748,8 +770,8 @@ window.__ModuleLoader__.load({
         let stopped = false
         const tick = () => {
           if (sessionId === undefined || sessionId === null) return
-          fetch(`${API}/recall?session=${encodeURIComponent(String(sessionId))}`)
-            .then((response) => response.json())
+          dshFetch(`/recall?session=${encodeURIComponent(String(sessionId))}`)
+            .then(readJsonResponse)
             .then((data) => {
               if (stopped || data === null || data.hint === null || data.hint === undefined) return
               setHint(data.hint)
@@ -1047,8 +1069,8 @@ window.__ModuleLoader__.load({
 
       const load = React.useCallback(() => {
         setState((current) => ({ ...current, loading: true }))
-        fetch(`${API}/choices`)
-          .then((response) => response.json())
+        dshFetch('/choices')
+          .then(readJsonResponse)
           .then((data) => {
             setState({
               loading: false,
@@ -1504,8 +1526,8 @@ window.__ModuleLoader__.load({
           /* the panel stays reachable from the sidebar entry */
         }
       }
-      fetch(`${API}/choices`)
-        .then((response) => response.json())
+      dshFetch('/choices')
+        .then(readJsonResponse)
         .then((data) => {
           const layout = data?.settings?.layout
           if (layout && typeof layout.gap === 'number' && typeof layout.width === 'number') patch({ layout })

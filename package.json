@@ -1,6 +1,6 @@
 {
   "name": "@zhangxij/dsh-nitui",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": false,
   "type": "module",
   "description": "逆推：假设失败、反向推演的决策辅助；推演记录写在本机 ~/.nitui，不上传。",
